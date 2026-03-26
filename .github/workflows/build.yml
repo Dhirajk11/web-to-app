@@ -23,18 +23,38 @@ jobs:
       - name: Accept Android SDK Licenses
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
+      - name: Fix Empty File Path Bug
+        run: |
+          # 1. Inject dummy variables to satisfy keystore requirements
+          echo "storeFile=." >> local.properties
+          echo "KEYSTORE_FILE=." >> local.properties
+          echo "RELEASE_STORE_FILE=." >> local.properties
+          echo "storeFile=." >> gradle.properties
+          echo "KEYSTORE_FILE=." >> gradle.properties
+          echo "RELEASE_STORE_FILE=." >> gradle.properties
+          
+          # 2. Fix literal empty file calls if they exist in the code
+          sed -i "s/file(\"\")/file(\".\")/g" app/build.gradle.kts
+          sed -i "s/file('')/file('.')/g" app/build.gradle.kts
+          
+          # 3. Print the file to the logs so we can see Line 25 if it crashes again!
+          echo "=== APP BUILD.GRADLE.KTS CONTENT ==="
+          cat app/build.gradle.kts
+
       - name: Make Gradle executable
         run: chmod +x gradlew
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
         env:
-          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g" # Gives Gradle 4GB of RAM so it doesn't crash
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g"
+          STORE_FILE: "."
+          KEYSTORE_FILE: "."
+          KEYSTORE: "."
 
       - name: Upload APK
-        if: always() # Ensures it uploads whatever it can even if it partially fails
+        if: always() 
         uses: actions/upload-artifact@v4
         with:
           name: web-to-app-apk
           path: app/build/outputs/apk/debug/*.apk
-          
